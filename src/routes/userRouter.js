@@ -47,6 +47,44 @@ userRouter.get('/user/connections', userAuth, async(req,res)=> {
     }catch(err){
         res.status(404).send({Message: err.message });
     }
-})
+});
+
+userRouter.get('/feed', userAuth, async(req,res)=> {
+    try{
+
+        const loggedInUser = req.user;
+
+        const page = parseInt(req.query.page) || 1;
+        let limit = parseInt(req.query.limit) || 10;
+        limit = limit > 50 ? 50 : limit;
+        const skip = (page - 1) * limit;
+
+        const connectionRequest = await ConnectionRequest.find({
+            $or: [
+                {fromUserId: loggedInUser._id}, {toUserId: loggedInUser._id},
+            ],
+        }).select("fromUserId toUserId");
+
+        const hideUsersFromFeed = new set();
+        connectionRequest.forEach((req) =>{
+            hideUsersFromFeed.add(req.fromUserId);
+            hideUsersFromFeed.add(req.toUserId);
+        });
+
+        const users = await User.find({
+            $and: [
+                { _id: {$in: Array.from(hideUsersFromFeed) } },
+                { _id: { $ne: loggedInUser._id }},
+            ],
+        })
+        .select("fromUserId", "firstName lastName age gender about skills")
+        .skip(skip)
+        .limit(limit);
+
+        res.send(users);
+    }catch(err){
+        res.status(400).json({Error:  + err.message});
+    }
+});
 
 module.exports = userRouter;
