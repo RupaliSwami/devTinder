@@ -4,7 +4,8 @@ const User = require('../models/user');
 const { userAuth } = require('../middlewares/auth');
 const ConnectionRequest = require('../models/connectionRequest');
 
-requestRouter.post('/request/send/:status/:toUserId', userAuth, async(req,res)=> {
+requestRouter.post('/request/send/:status/:toUserId', userAuth, async(req, res) => {
+
     try{
         
         const fromUserId = req.user._id;
@@ -38,75 +39,48 @@ requestRouter.post('/request/send/:status/:toUserId', userAuth, async(req,res)=>
             toUserId,
             status
         });
-        const data = await connectionRequest.save();
+
+        const data = await connectionRequest.save()
 
         return res.json({
             message: "Connection Request sent successfully!!",
             data
         })
     }catch(err){
-        res.status(400).json(err.message);
+        res.status(400).json("Error " + err.message);
     }
 });
 
-requestRouter.get('/user', async(req,res)=> {
-    
+requestRouter.post('/request/review/:status/:requestId', userAuth, async(req,res)=> {
+
     try{
-        //const users = await User.find({firstName : /Admin/i}, 'firstName lastName');
-        //const users = await User.findOne({ emailId: 'admin@gmai.com' });
-        //const users = await User.find();
-        const users = await User.find({emailId: req.body.emailId});
-        if(users.length === 0){
-            res.status(404).send('User not found');
+
+        const loggedInUser = req.user;
+        const { status } = req.params;
+        const {requestId} = req.params;
+
+        const AllowedStatus = ['accepted', 'rejected'];
+        if(!AllowedStatus.includes(status)){
+           return res.status(404).json({message: "Status is not allowed!!"});
         }
 
-        res.send(users);
-    }catch(err){
-        res.status(404).send('Something went wrong ' + err.messgae);
-    }
-})
+        const connectionRequest = await ConnectionRequest.findOne({
+            _id: requestId,
+            toUserId: loggedInUser._id,
+            status: 'interested'
+        });
 
-//Delete user
-requestRouter.delete('/user', async(req,res) => {
-    const userId = req.body.userId;
-    try{
-        const user = await User.findByIdAndDelete(userId);
-        res.send('User deleted successfully!!');
-    }catch(err){
-        res.status(400).send('Somethig went wrong');
-    }
-})
-
-//Update the user
-requestRouter.patch('/user/:userId', async(req,res)=> {
-    const userId = req.params.userId;
-    const data = req.body;
-    try{
-
-        const ALLOWED_UPDATES = [
-            'userId',
-            'firstName',
-            'lastName',
-            'password',
-            'age',
-            'gender',
-            'photoUrl',
-            'about',
-            'skills'
-        ];
-
-        const isUpdateAllowed = Object.keys(data).every((k) => 
-        ALLOWED_UPDATES.includes(k));
-        if(!isUpdateAllowed){
-            res.status(400).send("Update is not allowed");
+        if(!connectionRequest){
+           return res.status(404).json({message: "Connection request is not found!!"});
         }
-        const user = await User.findByIdAndUpdate({_id : userId}, data, {returnDocument: 'after', runValidators: true});
-        console.log("Update the user", user);
-        res.send("User updated successfully!!");
-    }catch(err){
-        res.status(400).send("Something went wrong" + err.message);
-    }
-})
 
+        connectionRequest.status = status;
+        const data = connectionRequest.save();
+        return res.json({ message: "Connection request " + status , data });
+
+    }catch(err){
+        res.status(400).send({'Error': + err.message})
+    }
+});
 
 module.exports = requestRouter;
